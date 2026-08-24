@@ -1,0 +1,5 @@
+pandas
+playwright
+gspread
+google-auth
+lxml
