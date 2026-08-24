@@ -74,8 +74,14 @@ def push_to_sheet(df):
     export_df['Snapshot Date'] = export_df['Snapshot Date'].dt.strftime('%Y-%m-%d')
     export_df = export_df.fillna('')
 
-    worksheet.update([export_df.columns.tolist()] + export_df.values.tolist())
-    print(f"✅ Wrote {len(export_df)} rows to '{SHEET_NAME}'")
+    # If sheet is empty, write header + data. Otherwise, append data only.
+    existing = worksheet.get_all_values()
+    if not existing:
+        worksheet.update([export_df.columns.tolist()] + export_df.values.tolist())
+    else:
+        worksheet.append_rows(export_df.values.tolist(), value_input_option='RAW')
+
+    print(f"✅ Wrote {len(export_df)} rows to '{SHEET_NAME}' (total rows now growing)")
 
 if __name__ == "__main__":
     html = fetch_mufap_html()
