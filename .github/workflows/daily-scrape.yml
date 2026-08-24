@@ -1,0 +1,28 @@
+name: Daily MUFAP Fund Scrape
+
+on:
+  schedule:
+    - cron: '0 16 * * *'   # 16:00 UTC = 9:00 PM Pakistan time, daily
+  workflow_dispatch:        # lets us trigger it manually to test
+
+jobs:
+  scrape:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repo
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: |
+          pip install -r requirements.txt
+          playwright install chromium --with-deps
+
+      - name: Run scraper
+        env:
+          GOOGLE_CREDENTIALS: ${{ secrets.GOOGLE_CREDENTIALS }}
+        run: python scraper.py
