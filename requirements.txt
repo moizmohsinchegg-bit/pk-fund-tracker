@@ -3,3 +3,4 @@ playwright
 gspread
 google-auth
 lxml
+streamlit
