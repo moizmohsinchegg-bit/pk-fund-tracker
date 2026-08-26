@@ -1,4 +1,6 @@
 import pandas as pd
+from datetime import date
+
 
 def extract_amc(fund_name):
     AMC_KEYWORDS = {
@@ -84,3 +86,76 @@ def get_switch_recommendation(fund_row, category_peers_df, aggressiveness="moder
                 "suggested_fund": best_peer['Fund Name']}
     else:
         return {"status": "HOLD", "reason": "Ranking is healthy relative to category peers.", "suggested_fund": None}
+
+
+# ---------- Ledger / portfolio functions ----------
+
+def get_or_create_worksheet(sh, name, headers):
+    """Get a worksheet by name, or create it with headers if it doesn't exist."""
+    try:
+        ws = sh.worksheet(name)
+    except Exception:
+        ws = sh.add_worksheet(title=name, rows=1000, cols=len(headers))
+        ws.append_row(headers)
+    return ws
+
+
+def get_users_df(sh):
+    ws = get_or_create_worksheet(sh, "Users", ["UserKey", "InvestorType", "StartDate", "PlannedAmount"])
+    records = ws.get_all_records()
+    return pd.DataFrame(records) if records else pd.DataFrame(columns=["UserKey", "InvestorType", "StartDate", "PlannedAmount"])
+
+
+def get_transactions_df(sh):
+    ws = get_or_create_worksheet(sh, "Transactions",
+                                   ["UserKey", "Date", "Type", "FundName", "GrossAmount", "NetAmount", "Units"])
+    records = ws.get_all_records()
+    return pd.DataFrame(records) if records else pd.DataFrame(
+        columns=["UserKey", "Date", "Type", "FundName", "GrossAmount", "NetAmount", "Units"])
+
+
+def add_user(sh, user_key, investor_type, start_date, planned_amount):
+    ws = get_or_create_worksheet(sh, "Users", ["UserKey", "InvestorType", "StartDate", "PlannedAmount"])
+    ws.append_row([user_key, investor_type, str(start_date), planned_amount])
+
+
+def add_transaction(sh, user_key, txn_date, txn_type, fund_name, gross_amount, net_amount, units):
+    ws = get_or_create_worksheet(sh, "Transactions",
+                                   ["UserKey", "Date", "Type", "FundName", "GrossAmount", "NetAmount", "Units"])
+    ws.append_row([user_key, str(txn_date), txn_type, fund_name, gross_amount, net_amount, units])
+
+
+def compute_portfolio(transactions_df, scored_df, user_key):
+    """Returns a DataFrame: one row per fund currently held, with units, current value, gain/loss."""
+    user_txns = transactions_df[transactions_df['UserKey'] == user_key].copy()
+    if user_txns.empty:
+        return pd.DataFrame()
+
+    user_txns['Units'] = pd.to_numeric(user_txns['Units'], errors='coerce')
+    user_txns['GrossAmount'] = pd.to_numeric(user_txns['GrossAmount'], errors='coerce')
+    user_txns['NetAmount'] = pd.to_numeric(user_txns['NetAmount'], errors='coerce')
+
+    # Units held = investments - redemptions, per fund
+    user_txns['SignedUnits'] = user_txns.apply(
+        lambda r: r['Units'] if r['Type'] == 'INVESTMENT' else -r['Units'], axis=1)
+    user_txns['SignedInvested'] = user_txns.apply(
+        lambda r: r['GrossAmount'] if r['Type'] == 'INVESTMENT' else -r['NetAmount'], axis=1)
+
+    holdings = user_txns.groupby('FundName').agg(
+        Units=('SignedUnits', 'sum'),
+        NetInvested=('SignedInvested', 'sum')
+    ).reset_index()
+
+    holdings = holdings[holdings['Units'] > 0.0001]  # drop fully redeemed funds
+    if holdings.empty:
+        return pd.DataFrame()
+
+    # Attach current NAV and category/rank info
+    nav_lookup = scored_df[['Fund Name', 'NAV', 'Category', 'AMC', 'Rank in Category', 'Composite Score']].rename(
+        columns={'Fund Name': 'FundName'})
+    holdings = holdings.merge(nav_lookup, on='FundName', how='left')
+    holdings['Current Value'] = holdings['Units'] * holdings['NAV']
+    holdings['Gain/Loss'] = holdings['Current Value'] - holdings['NetInvested']
+    holdings['Gain/Loss %'] = (holdings['Gain/Loss'] / holdings['NetInvested'] * 100).round(2)
+
+    return holdings
