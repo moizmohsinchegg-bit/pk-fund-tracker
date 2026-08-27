@@ -72,7 +72,7 @@ def get_switch_recommendation(fund_row, category_peers_df, aggressiveness="moder
     }
     t = thresholds[aggressiveness]
     best_peer = category_peers_df.sort_values('Rank in Category').iloc[0]
-    is_already_best = fund_row['Fund Name'] == best_peer['Fund Name']
+    is_already_best = fund_row['FundName'] == best_peer['Fund Name']
 
     if is_already_best:
         return {"status": "HOLD", "reason": "Already the top-ranked fund in its category.", "suggested_fund": None}
