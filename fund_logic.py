@@ -114,9 +114,9 @@ def get_transactions_df(sh):
         columns=["UserKey", "Date", "Type", "FundName", "GrossAmount", "NetAmount", "Units"])
 
 
-def add_user(sh, user_key, investor_type, start_date, planned_amount):
-    ws = get_or_create_worksheet(sh, "Users", ["UserKey", "InvestorType", "StartDate", "PlannedAmount"])
-    ws.append_row([user_key, investor_type, str(start_date), planned_amount])
+def add_user(sh, user_key, email, investor_type, start_date, planned_amount):
+    ws = get_or_create_worksheet(sh, "Users", ["UserKey", "Email", "InvestorType", "StartDate", "PlannedAmount"])
+    ws.append_row([user_key, email, investor_type, str(start_date), planned_amount])
 
 
 def add_transaction(sh, user_key, txn_date, txn_type, fund_name, gross_amount, net_amount, units):
@@ -135,22 +135,34 @@ def compute_portfolio(transactions_df, scored_df, user_key):
     user_txns['GrossAmount'] = pd.to_numeric(user_txns['GrossAmount'], errors='coerce')
     user_txns['NetAmount'] = pd.to_numeric(user_txns['NetAmount'], errors='coerce')
 
-    # Units held = investments - redemptions, per fund
-    user_txns['SignedUnits'] = user_txns.apply(
-        lambda r: r['Units'] if r['Type'] == 'INVESTMENT' else -r['Units'], axis=1)
-    user_txns['SignedInvested'] = user_txns.apply(
-        lambda r: r['GrossAmount'] if r['Type'] == 'INVESTMENT' else -r['NetAmount'], axis=1)
+    def signed_units(r):
+        if r['Type'] == 'INVESTMENT':
+            return r['Units']
+        elif r['Type'] == 'REDEMPTION':
+            return -r['Units']
+        else:  # ADJUSTMENT - Units already stored signed (+ or -)
+            return r['Units']
+
+    def signed_invested(r):
+        if r['Type'] == 'INVESTMENT':
+            return r['GrossAmount']
+        elif r['Type'] == 'REDEMPTION':
+            return -r['NetAmount']
+        else:  # ADJUSTMENT - GrossAmount already stored signed
+            return r['GrossAmount']
+
+    user_txns['SignedUnits'] = user_txns.apply(signed_units, axis=1)
+    user_txns['SignedInvested'] = user_txns.apply(signed_invested, axis=1)
 
     holdings = user_txns.groupby('FundName').agg(
         Units=('SignedUnits', 'sum'),
         NetInvested=('SignedInvested', 'sum')
     ).reset_index()
 
-    holdings = holdings[holdings['Units'] > 0.0001]  # drop fully redeemed funds
+    holdings = holdings[holdings['Units'] > 0.0001]
     if holdings.empty:
         return pd.DataFrame()
 
-    # Attach current NAV and category/rank info
     nav_lookup = scored_df[['Fund Name', 'NAV', 'Category', 'AMC', 'Rank in Category', 'Composite Score']].rename(
         columns={'Fund Name': 'FundName'})
     holdings = holdings.merge(nav_lookup, on='FundName', how='left')
