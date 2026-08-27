@@ -74,14 +74,19 @@ def push_to_sheet(df):
     export_df['Snapshot Date'] = export_df['Snapshot Date'].dt.strftime('%Y-%m-%d')
     export_df = export_df.fillna('')
 
-    # If sheet is empty, write header + data. Otherwise, append data only.
     existing = worksheet.get_all_values()
+
+    # Make sure the grid has room before appending - grow it generously (1 year of daily data)
+    rows_needed = len(existing) + len(export_df) + 50  # +50 buffer
+    if worksheet.row_count < rows_needed:
+        worksheet.resize(rows=max(rows_needed, worksheet.row_count + 5000))
+
     if not existing:
         worksheet.update([export_df.columns.tolist()] + export_df.values.tolist())
     else:
         worksheet.append_rows(export_df.values.tolist(), value_input_option='RAW')
 
-    print(f"✅ Wrote {len(export_df)} rows to '{SHEET_NAME}' (total rows now growing)")
+    print(f"✅ Wrote {len(export_df)} rows to '{SHEET_NAME}' (grid now {worksheet.row_count} rows)")
 
 if __name__ == "__main__":
     html = fetch_mufap_html()
