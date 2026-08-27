@@ -37,29 +37,45 @@ scored = load_scored_data()
 st.title("🇵🇰 Pakistan Fund Intelligence")
 st.caption("Not financial or tax advice — verify independently before acting.")
 
-# ---------- LOGIN GATE ----------
+# ---------- LOGIN GATE (email + key) ----------
 if "user_key" not in st.session_state:
     st.session_state.user_key = None
+    st.session_state.user_email = None
 
 if st.session_state.user_key is None:
-    st.subheader("Enter your access key")
+    st.subheader("Login")
+    email_input = st.text_input("Email")
     key_input = st.text_input("Access Key", type="password")
+
     if st.button("Continue"):
-        if key_input.strip():
-            st.session_state.user_key = key_input.strip()
-            st.rerun()
+        if not email_input.strip() or not key_input.strip():
+            st.error("Please enter both email and access key.")
         else:
-            st.error("Please enter a key.")
+            users_df_check = get_users_df(sh)
+            match = users_df_check[users_df_check['UserKey'] == key_input.strip()]
+
+            if not match.empty:
+                # Existing key - verify email matches for security
+                stored_email = match.iloc[0]['Email']
+                if stored_email.strip().lower() != email_input.strip().lower():
+                    st.error("Email does not match this access key.")
+                    st.stop()
+
+            st.session_state.user_key = key_input.strip()
+            st.session_state.user_email = email_input.strip()
+            st.rerun()
     st.stop()
 
 user_key = st.session_state.user_key
+user_email = st.session_state.user_email
 users_df = get_users_df(sh)
 transactions_df = get_transactions_df(sh)
 existing_user_row = users_df[users_df['UserKey'] == user_key]
 
-st.sidebar.write(f"Logged in as: **{user_key}**")
+st.sidebar.write(f"Logged in as: **{user_email}**")
 if st.sidebar.button("Log out"):
     st.session_state.user_key = None
+    st.session_state.user_email = None
     st.rerun()
 
 aggressiveness = st.sidebar.select_slider(
@@ -77,7 +93,7 @@ if existing_user_row.empty:
         planned_amount = st.number_input("How much are you planning to invest (PKR)?", min_value=0.0, step=1000.0)
         planned_date = st.date_input("When do you plan to invest?", value=date.today())
         if st.button("Save profile"):
-            add_user(sh, user_key, "New", planned_date, planned_amount)
+            add_user(sh, user_key, user_email, "New", planned_date, planned_amount)
             st.success("Profile saved! Refresh to continue.")
             st.rerun()
 
@@ -105,7 +121,7 @@ if existing_user_row.empty:
                 st.write(f"- {h['fund']}: PKR {h['amount']:,.0f}")
 
             if st.button("Finish setup"):
-                add_user(sh, user_key, "Existing", date.today(), None)
+                add_user(sh, user_key, user_email, "Existing", date.today(), None)
                 for h in st.session_state.onboard_holdings:
                     nav_row = scored[scored['Fund Name'] == h['fund']]
                     nav = float(nav_row['NAV'].iloc[0]) if not nav_row.empty else None
@@ -173,10 +189,33 @@ if st.button("Record Investment"):
     st.success(f"Recorded investment of PKR {amt2:,.0f} in {fund2}")
     st.rerun()
 
+# ---------- ADJUST AN EXISTING HOLDING ----------
+st.write("### Adjust a Holding (to match your real statement)")
+if not portfolio.empty:
+    adjust_fund = st.selectbox("Which fund needs adjusting?", portfolio['FundName'].tolist(), key="adjust_fund")
+    current_row = portfolio[portfolio['FundName'] == adjust_fund].iloc[0]
+
+    st.number_input("Current value on file (PKR)", value=float(current_row['Current Value']),
+                     disabled=True, key="adjust_old")
+    new_value = st.number_input("Actual current value (PKR)", min_value=0.0,
+                                  value=float(current_row['Current Value']), step=1000.0, key="adjust_new")
+
+    if st.button("Apply Adjustment"):
+        nav_row = scored[scored['Fund Name'] == adjust_fund]
+        nav = float(nav_row['NAV'].iloc[0])
+        target_units = new_value / nav
+        delta_units = target_units - current_row['Units']
+        delta_amount = new_value - current_row['Current Value']
+        add_transaction(sh, user_key, date.today(), "ADJUSTMENT", adjust_fund, delta_amount, delta_amount, delta_units)
+        st.success(f"Adjusted {adjust_fund} by PKR {delta_amount:,.0f}")
+        st.rerun()
+else:
+    st.write("No holdings yet to adjust.")
+
 # ---------- REDEMPTION ----------
 st.write("### Record a Redemption")
 if not portfolio.empty:
-    redeem_fund = st.selectbox("Which fund are you redeeming?", portfolio['FundName'].tolist())
+    redeem_fund = st.selectbox("Which fund are you redeeming?", portfolio['FundName'].tolist(), key="redeem_fund")
     gross = st.number_input("Gross amount redeemed (PKR)", min_value=0.0, step=1000.0, key="redeem_gross")
     net = st.number_input("Net amount you actually received (PKR)", min_value=0.0, step=1000.0, key="redeem_net")
 
