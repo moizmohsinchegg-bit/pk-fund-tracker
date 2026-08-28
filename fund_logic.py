@@ -19,7 +19,6 @@ def extract_amc(fund_name):
 
 
 def score_funds(df):
-    """Takes the latest snapshot DataFrame, returns it with Category ranks and scores added."""
     df = df.copy()
     numeric_cols = ['YTD', 'MTD', '1 Day', '15 Days', '30 Days', '90 Days',
                      '180 Days', '270 Days', '365 Days', '2 Years', '3 Years', 'NAV']
@@ -88,111 +87,29 @@ def get_switch_recommendation(fund_row, category_peers_df, aggressiveness="moder
         return {"status": "HOLD", "reason": "Ranking is healthy relative to category peers.", "suggested_fund": None}
 
 
-# ---------- Ledger / portfolio functions ----------
-
-def get_or_create_worksheet(sh, name, headers):
-    """Get a worksheet by name, or create it with headers if it doesn't exist."""
-    try:
-        ws = sh.worksheet(name)
-    except Exception:
-        ws = sh.add_worksheet(title=name, rows=1000, cols=len(headers))
-        ws.append_row(headers)
-    return ws
-
-
-def get_users_df(sh):
-    ws = get_or_create_worksheet(sh, "Users", ["UserKey", "InvestorType", "StartDate", "PlannedAmount"])
-    records = ws.get_all_records()
-    return pd.DataFrame(records) if records else pd.DataFrame(columns=["UserKey", "InvestorType", "StartDate", "PlannedAmount"])
-
-
-def get_transactions_df(sh):
-    ws = get_or_create_worksheet(sh, "Transactions",
-                                   ["UserKey", "Date", "Type", "FundName", "GrossAmount", "NetAmount", "Units"])
-    records = ws.get_all_records()
-    return pd.DataFrame(records) if records else pd.DataFrame(
-        columns=["UserKey", "Date", "Type", "FundName", "GrossAmount", "NetAmount", "Units"])
+def get_indicator_breakdown(fund_row, category_peers_df):
+    windows = ['1 Day', '15 Days', '30 Days', '90 Days', '180 Days', '270 Days',
+               'YTD', '365 Days', '2 Years', '3 Years']
+    rows = []
+    for w in windows:
+        fund_value = fund_row.get(w)
+        if pd.isna(fund_value):
+            continue
+        peer_values = category_peers_df[w].dropna()
+        if len(peer_values) < 2:
+            percentile = None
+        else:
+            percentile = (peer_values < fund_value).mean() * 100
+        rows.append({
+            "Time Span": w,
+            "Return (%)": round(fund_value, 2),
+            "Category Percentile": round(percentile, 0) if percentile is not None else "N/A",
+            "Funds Compared": len(peer_values)
+        })
+    return pd.DataFrame(rows)
 
 
-def add_user(sh, user_key, email, investor_type, start_date, planned_amount):
-    ws = get_or_create_worksheet(sh, "Users", ["UserKey", "Email", "InvestorType", "StartDate", "PlannedAmount"])
-    ws.append_row([user_key, email, investor_type, str(start_date), planned_amount])
-
-
-def add_transaction(sh, user_key, txn_date, txn_type, fund_name, gross_amount, net_amount, units):
-    ws = get_or_create_worksheet(sh, "Transactions",
-                                   ["UserKey", "Date", "Type", "FundName", "GrossAmount", "NetAmount", "Units"])
-    ws.append_row([user_key, str(txn_date), txn_type, fund_name, gross_amount, net_amount, units])
-
-
-def compute_portfolio(transactions_df, scored_df, user_key):
-    """Returns a DataFrame: one row per fund currently held, with units, current value, gain/loss."""
-    user_txns = transactions_df[transactions_df['UserKey'] == user_key].copy()
-    if user_txns.empty:
-        return pd.DataFrame()
-
-    user_txns['Units'] = pd.to_numeric(user_txns['Units'], errors='coerce')
-    user_txns['GrossAmount'] = pd.to_numeric(user_txns['GrossAmount'], errors='coerce')
-    user_txns['NetAmount'] = pd.to_numeric(user_txns['NetAmount'], errors='coerce')
-
-    def signed_units(r):
-        if r['Type'] == 'INVESTMENT':
-            return r['Units']
-        elif r['Type'] == 'REDEMPTION':
-            return -r['Units']
-        else:  # ADJUSTMENT - Units already stored signed (+ or -)
-            return r['Units']
-
-    def signed_invested(r):
-        if r['Type'] == 'INVESTMENT':
-            return r['GrossAmount']
-        elif r['Type'] == 'REDEMPTION':
-            return -r['NetAmount']
-        else:  # ADJUSTMENT - GrossAmount already stored signed
-            return r['GrossAmount']
-
-    user_txns['SignedUnits'] = user_txns.apply(signed_units, axis=1)
-    user_txns['SignedInvested'] = user_txns.apply(signed_invested, axis=1)
-
-    holdings = user_txns.groupby('FundName').agg(
-        Units=('SignedUnits', 'sum'),
-        NetInvested=('SignedInvested', 'sum')
-    ).reset_index()
-
-    holdings = holdings[holdings['Units'] > 0.0001]
-    if holdings.empty:
-        return pd.DataFrame()
-
-    nav_lookup = scored_df[['Fund Name', 'NAV', 'Category', 'AMC', 'Rank in Category', 'Composite Score']].rename(
-        columns={'Fund Name': 'FundName'})
-    holdings = holdings.merge(nav_lookup, on='FundName', how='left')
-    holdings['Current Value'] = holdings['Units'] * holdings['NAV']
-    holdings['Gain/Loss'] = holdings['Current Value'] - holdings['NetInvested']
-    holdings['Gain/Loss %'] = (holdings['Gain/Loss'] / holdings['NetInvested'] * 100).round(2)
-
-    return holdings
-def get_signup_requests_df(sh):
-    ws = get_or_create_worksheet(sh, "SignupRequests", ["Name", "Email", "Phone", "RequestDate", "Status"])
-    records = ws.get_all_records()
-    return pd.DataFrame(records) if records else pd.DataFrame(columns=["Name", "Email", "Phone", "RequestDate", "Status"])
-    
-
-
-def add_signup_request(sh, name, email, phone):
-    ws = get_or_create_worksheet(sh, "SignupRequests", ["Name", "Email", "Phone", "RequestDate", "Status"])
-    ws.append_row([name, email, phone, str(date.today()), "Pending"])
-def update_user_profile(sh, user_key, investor_type, start_date, planned_amount):
-    """Fills in InvestorType/StartDate/PlannedAmount for a user row that already exists (e.g. admin-created)."""
-    ws = get_or_create_worksheet(sh, "Users", ["UserKey", "Email", "InvestorType", "StartDate", "PlannedAmount"])
-    cell = ws.find(user_key)
-    if cell is None:
-        return False
-    row_num = cell.row
-    ws.update(f"C{row_num}:E{row_num}",
-              [[investor_type, str(start_date), planned_amount if planned_amount is not None else ""]])
-    return True
 def generate_interpretation(fund_row, breakdown_df, rec):
-    """Turns the indicator breakdown into a plain-language explanation."""
     if breakdown_df.empty:
         return "Not enough data to interpret this fund's trend yet."
 
@@ -219,3 +136,108 @@ def generate_interpretation(fund_row, breakdown_df, rec):
     }
 
     return f"{status_explainer[rec['status']]} {trend_note}"
+
+
+def get_or_create_worksheet(sh, name, headers):
+    try:
+        ws = sh.worksheet(name)
+    except Exception:
+        ws = sh.add_worksheet(title=name, rows=1000, cols=len(headers))
+        ws.append_row(headers)
+    return ws
+
+
+def get_users_df(sh):
+    ws = get_or_create_worksheet(sh, "Users", ["UserKey", "Email", "InvestorType", "StartDate", "PlannedAmount"])
+    records = ws.get_all_records()
+    return pd.DataFrame(records) if records else pd.DataFrame(
+        columns=["UserKey", "Email", "InvestorType", "StartDate", "PlannedAmount"])
+
+
+def get_transactions_df(sh):
+    ws = get_or_create_worksheet(sh, "Transactions",
+                                   ["UserKey", "Date", "Type", "FundName", "GrossAmount", "NetAmount", "Units"])
+    records = ws.get_all_records()
+    return pd.DataFrame(records) if records else pd.DataFrame(
+        columns=["UserKey", "Date", "Type", "FundName", "GrossAmount", "NetAmount", "Units"])
+
+
+def add_user(sh, user_key, email, investor_type, start_date, planned_amount):
+    ws = get_or_create_worksheet(sh, "Users", ["UserKey", "Email", "InvestorType", "StartDate", "PlannedAmount"])
+    ws.append_row([user_key, email, investor_type, str(start_date), planned_amount])
+
+
+def add_transaction(sh, user_key, txn_date, txn_type, fund_name, gross_amount, net_amount, units):
+    ws = get_or_create_worksheet(sh, "Transactions",
+                                   ["UserKey", "Date", "Type", "FundName", "GrossAmount", "NetAmount", "Units"])
+    ws.append_row([user_key, str(txn_date), txn_type, fund_name, gross_amount, net_amount, units])
+
+
+def compute_portfolio(transactions_df, scored_df, user_key):
+    user_txns = transactions_df[transactions_df['UserKey'] == user_key].copy()
+    if user_txns.empty:
+        return pd.DataFrame()
+
+    user_txns['Units'] = pd.to_numeric(user_txns['Units'], errors='coerce')
+    user_txns['GrossAmount'] = pd.to_numeric(user_txns['GrossAmount'], errors='coerce')
+    user_txns['NetAmount'] = pd.to_numeric(user_txns['NetAmount'], errors='coerce')
+
+    def signed_units(r):
+        if r['Type'] == 'INVESTMENT':
+            return r['Units']
+        elif r['Type'] == 'REDEMPTION':
+            return -r['Units']
+        else:
+            return r['Units']
+
+    def signed_invested(r):
+        if r['Type'] == 'INVESTMENT':
+            return r['GrossAmount']
+        elif r['Type'] == 'REDEMPTION':
+            return -r['NetAmount']
+        else:
+            return r['GrossAmount']
+
+    user_txns['SignedUnits'] = user_txns.apply(signed_units, axis=1)
+    user_txns['SignedInvested'] = user_txns.apply(signed_invested, axis=1)
+
+    holdings = user_txns.groupby('FundName').agg(
+        Units=('SignedUnits', 'sum'),
+        NetInvested=('SignedInvested', 'sum')
+    ).reset_index()
+
+    holdings = holdings[holdings['Units'] > 0.0001]
+    if holdings.empty:
+        return pd.DataFrame()
+
+    nav_lookup = scored_df[['Fund Name', 'NAV', 'Category', 'AMC', 'Rank in Category', 'Composite Score']].rename(
+        columns={'Fund Name': 'FundName'})
+    holdings = holdings.merge(nav_lookup, on='FundName', how='left')
+    holdings['Current Value'] = holdings['Units'] * holdings['NAV']
+    holdings['Gain/Loss'] = holdings['Current Value'] - holdings['NetInvested']
+    holdings['Gain/Loss %'] = (holdings['Gain/Loss'] / holdings['NetInvested'] * 100).round(2)
+
+    return holdings
+
+
+def update_user_profile(sh, user_key, investor_type, start_date, planned_amount):
+    ws = get_or_create_worksheet(sh, "Users", ["UserKey", "Email", "InvestorType", "StartDate", "PlannedAmount"])
+    cell = ws.find(user_key)
+    if cell is None:
+        return False
+    row_num = cell.row
+    ws.update(f"C{row_num}:E{row_num}",
+              [[investor_type, str(start_date), planned_amount if planned_amount is not None else ""]])
+    return True
+
+
+def get_signup_requests_df(sh):
+    ws = get_or_create_worksheet(sh, "SignupRequests", ["Name", "Email", "Phone", "RequestDate", "Status"])
+    records = ws.get_all_records()
+    return pd.DataFrame(records) if records else pd.DataFrame(
+        columns=["Name", "Email", "Phone", "RequestDate", "Status"])
+
+
+def add_signup_request(sh, name, email, phone):
+    ws = get_or_create_worksheet(sh, "SignupRequests", ["Name", "Email", "Phone", "RequestDate", "Status"])
+    ws.append_row([name, email, phone, str(date.today()), "Pending"])
