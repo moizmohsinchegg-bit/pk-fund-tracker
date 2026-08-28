@@ -9,7 +9,8 @@ from fund_logic import (
     score_funds, get_switch_recommendation,
     get_users_df, get_transactions_df, add_user, add_transaction, compute_portfolio
 )
-
+from email_utils import send_admin_notification
+from fund_logic import get_signup_requests_df, add_signup_request  # add to existing fund_logic import line instead if you prefer one line
 st.set_page_config(page_title="Pakistan Fund Intelligence", layout="wide")
 
 
