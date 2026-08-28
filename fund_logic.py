@@ -181,7 +181,6 @@ def get_signup_requests_df(sh):
 def add_signup_request(sh, name, email, phone):
     ws = get_or_create_worksheet(sh, "SignupRequests", ["Name", "Email", "Phone", "RequestDate", "Status"])
     ws.append_row([name, email, phone, str(date.today()), "Pending"])
-
 def update_user_profile(sh, user_key, investor_type, start_date, planned_amount):
     """Fills in InvestorType/StartDate/PlannedAmount for a user row that already exists (e.g. admin-created)."""
     ws = get_or_create_worksheet(sh, "Users", ["UserKey", "Email", "InvestorType", "StartDate", "PlannedAmount"])
