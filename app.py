@@ -6,7 +6,7 @@ from datetime import date
 import json
 import plotly.express as px
 from fund_logic import (
-    score_funds, get_switch_recommendation,
+    score_funds, get_switch_recommendation, get_indicator_breakdown, generate_interpretation,
     get_users_df, get_transactions_df, add_user, add_transaction, compute_portfolio,
     update_user_profile
 )
