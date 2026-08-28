@@ -185,18 +185,55 @@ else:
         fig_cat = px.pie(cat_alloc, values='Current Value', names='Category', title="Allocation by Category")
         st.plotly_chart(fig_cat, use_container_width=True)
 
-    st.write("### Fund-by-Fund Detail & Recommendations")
+        st.write("### Fund-by-Fund Detail & Recommendations")
+
+    # Summary table first - everything at a glance
+    summary_rows = []
+    for _, row in portfolio.iterrows():
+        peers = scored[scored['Category'] == row['Category']]
+        rec = get_switch_recommendation(row, peers, aggressiveness)
+        summary_rows.append({
+            "Status": {"HOLD": "🟢 HOLD", "WATCH": "🟡 WATCH", "SWITCH": "🔴 SWITCH"}[rec['status']],
+            "Fund": row['FundName'],
+            "Category": row['Category'].replace(" (Absolute Return )", "").replace(" (Annualized Return )", ""),
+            "Rank in Category": f"#{int(row['Rank in Category'])} of {len(peers)}" if pd.notna(row['Rank in Category']) else "N/A",
+            "Current Value (PKR)": f"{row['Current Value']:,.0f}",
+            "Gain/Loss": f"{row['Gain/Loss %']}%",
+        })
+    st.dataframe(pd.DataFrame(summary_rows), use_container_width=True, hide_index=True)
+
+    st.divider()
+
+    # Then full detail per fund
     for _, row in portfolio.iterrows():
         peers = scored[scored['Category'] == row['Category']]
         rec = get_switch_recommendation(row, peers, aggressiveness)
         color = {"HOLD": "🟢", "WATCH": "🟡", "SWITCH": "🔴"}[rec['status']]
+        breakdown = get_indicator_breakdown(row, peers)
+        interpretation = generate_interpretation(row, breakdown, rec)
 
-        st.markdown(f"**{color} {row['FundName']}**")
+        st.markdown(f"**{color} {row['FundName']}** — {rec['status']}")
         st.write(f"Units: {row['Units']:.2f} | Current Value: PKR {row['Current Value']:,.0f} | "
                  f"Gain/Loss: PKR {row['Gain/Loss']:,.0f} ({row['Gain/Loss %']}%)")
-        st.write(f"Recommendation: **{rec['status']}** — {rec['reason']}")
-        if rec['suggested_fund']:
-            st.write(f"Top alternative in category: {rec['suggested_fund']}")
+        st.info(interpretation)
+
+        with st.expander("See the full performance breakdown"):
+            st.write(f"**{row['FundName']}** across every time span, vs. all {len(peers)} funds in "
+                     f"*{row['Category']}*:")
+            st.dataframe(breakdown, use_container_width=True, hide_index=True)
+
+            if rec['suggested_fund']:
+                alt_row = peers[peers['Fund Name'] == rec['suggested_fund']].iloc[0]
+                alt_breakdown = get_indicator_breakdown(alt_row.rename({'Fund Name': 'FundName'}), peers)
+                st.write(f"**Compare to {rec['suggested_fund']}** (top-ranked alternative):")
+                st.dataframe(alt_breakdown, use_container_width=True, hide_index=True)
+
+            st.caption(
+                f"Composite Score = average category-percentile across YTD/1Y/2Y/3Y returns, blended with a "
+                f"risk-rating score where available. Current threshold ('{aggressiveness}'): SWITCH fires below the "
+                f"{'15th' if aggressiveness=='conservative' else '30th' if aggressiveness=='moderate' else '50th'} "
+                f"percentile in category."
+            )
         st.divider()
 
 # ---------- ADD INVESTMENT ----------
