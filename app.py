@@ -38,7 +38,7 @@ scored = load_scored_data()
 st.title("🇵🇰 Pakistan Fund Intelligence")
 st.caption("Not financial or tax advice — verify independently before acting.")
 
-# ---------- LOGIN GATE (email + key) ----------
+# ---------- LOGIN GATE (email + key, with request-access flow) ----------
 if "user_key" not in st.session_state:
     st.session_state.user_key = None
     st.session_state.user_email = None
@@ -55,16 +55,42 @@ if st.session_state.user_key is None:
             users_df_check = get_users_df(sh)
             match = users_df_check[users_df_check['UserKey'] == key_input.strip()]
 
-            if not match.empty:
-                # Existing key - verify email matches for security
-                stored_email = match.iloc[0]['Email']
-                if stored_email.strip().lower() != email_input.strip().lower():
+            if match.empty:
+                st.error("Access key not found. If you don't have one yet, request access below.")
+            else:
+                stored_email = str(match.iloc[0].get('Email', '')).strip().lower()
+                if stored_email and stored_email != email_input.strip().lower():
                     st.error("Email does not match this access key.")
-                    st.stop()
+                else:
+                    st.session_state.user_key = key_input.strip()
+                    st.session_state.user_email = email_input.strip()
+                    st.rerun()
 
-            st.session_state.user_key = key_input.strip()
-            st.session_state.user_email = email_input.strip()
-            st.rerun()
+    st.divider()
+    st.subheader("Don't have an access key yet?")
+    with st.form("request_access_form"):
+        req_name = st.text_input("Full Name")
+        req_email = st.text_input("Email", key="req_email")
+        req_phone = st.text_input("Phone (format: +923001234567)")
+        submitted = st.form_submit_button("Request Access")
+
+        if submitted:
+            phone_clean = req_phone.strip().replace(" ", "")
+            valid_phone = (phone_clean.startswith("+92") and
+                           phone_clean[3:].isdigit() and
+                           len(phone_clean[3:]) == 10)
+
+            if not req_name.strip() or not req_email.strip():
+                st.error("Please fill in your name and email.")
+            elif not valid_phone:
+                st.error("Phone must be in the format +92 followed by 10 digits, e.g. +923001234567")
+            else:
+                add_signup_request(sh, req_name.strip(), req_email.strip(), phone_clean)
+                sent, info = send_admin_notification(req_name.strip(), req_email.strip(), phone_clean)
+                if sent:
+                    st.success("Request submitted! You'll receive your access key by email once approved.")
+                else:
+                    st.warning("Request saved, but the notification email failed to send. Check the SignupRequests sheet.")
     st.stop()
 
 user_key = st.session_state.user_key
