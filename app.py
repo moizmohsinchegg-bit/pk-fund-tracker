@@ -121,7 +121,7 @@ if needs_onboarding::
         planned_amount = st.number_input("How much are you planning to invest (PKR)?", min_value=0.0, step=1000.0)
         planned_date = st.date_input("When do you plan to invest?", value=date.today())
         if st.button("Save profile"):
-            add_user(sh, user_key, user_email, "New", planned_date, planned_amount)
+            update_user_profile(sh, user_key, "New", planned_date, planned_amount)
             st.success("Profile saved! Refresh to continue.")
             st.rerun()
 
@@ -149,7 +149,7 @@ if needs_onboarding::
                 st.write(f"- {h['fund']}: PKR {h['amount']:,.0f}")
 
             if st.button("Finish setup"):
-                add_user(sh, user_key, user_email, "Existing", date.today(), None)
+                  update_user_profile(sh, user_key, "Existing", date.today(), None)
                 for h in st.session_state.onboard_holdings:
                     nav_row = scored[scored['Fund Name'] == h['fund']]
                     nav = float(nav_row['NAV'].iloc[0]) if not nav_row.empty else None
