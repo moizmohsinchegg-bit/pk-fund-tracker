@@ -113,7 +113,7 @@ aggressiveness = st.sidebar.select_slider(
 )
 
 # ---------- ONBOARDING (first time only) ----------
-if needs_onboarding::
+if needs_onboarding:
     st.subheader("Welcome — let's set up your profile")
     investor_type = st.radio("Are you a new investor or an existing investor?", ["New", "Existing"])
 
