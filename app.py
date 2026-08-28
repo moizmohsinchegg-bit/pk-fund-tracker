@@ -7,7 +7,8 @@ import json
 import plotly.express as px
 from fund_logic import (
     score_funds, get_switch_recommendation,
-    get_users_df, get_transactions_df, add_user, add_transaction, compute_portfolio
+    get_users_df, get_transactions_df, add_user, add_transaction, compute_portfolio,
+    update_user_profile
 )
 from email_utils import send_admin_notification
 from fund_logic import get_signup_requests_df, add_signup_request  # add to existing fund_logic import line instead if you prefer one line
@@ -98,7 +99,7 @@ user_email = st.session_state.user_email
 users_df = get_users_df(sh)
 transactions_df = get_transactions_df(sh)
 existing_user_row = users_df[users_df['UserKey'] == user_key]
-
+needs_onboarding = existing_user_row.empty or str(existing_user_row.iloc[0].get('InvestorType', '')).strip() == ''
 st.sidebar.write(f"Logged in as: **{user_email}**")
 if st.sidebar.button("Log out"):
     st.session_state.user_key = None
