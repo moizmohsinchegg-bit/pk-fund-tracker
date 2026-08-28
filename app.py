@@ -149,7 +149,7 @@ if needs_onboarding:
                 st.write(f"- {h['fund']}: PKR {h['amount']:,.0f}")
 
             if st.button("Finish setup"):
-                  update_user_profile(sh, user_key, "Existing", date.today(), None)
+                update_user_profile(sh, user_key, "Existing", date.today(), None)
                 for h in st.session_state.onboard_holdings:
                     nav_row = scored[scored['Fund Name'] == h['fund']]
                     nav = float(nav_row['NAV'].iloc[0]) if not nav_row.empty else None
