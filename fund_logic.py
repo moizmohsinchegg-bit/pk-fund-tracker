@@ -175,8 +175,20 @@ def get_signup_requests_df(sh):
     ws = get_or_create_worksheet(sh, "SignupRequests", ["Name", "Email", "Phone", "RequestDate", "Status"])
     records = ws.get_all_records()
     return pd.DataFrame(records) if records else pd.DataFrame(columns=["Name", "Email", "Phone", "RequestDate", "Status"])
+    
 
 
 def add_signup_request(sh, name, email, phone):
     ws = get_or_create_worksheet(sh, "SignupRequests", ["Name", "Email", "Phone", "RequestDate", "Status"])
     ws.append_row([name, email, phone, str(date.today()), "Pending"])
+
+def update_user_profile(sh, user_key, investor_type, start_date, planned_amount):
+    """Fills in InvestorType/StartDate/PlannedAmount for a user row that already exists (e.g. admin-created)."""
+    ws = get_or_create_worksheet(sh, "Users", ["UserKey", "Email", "InvestorType", "StartDate", "PlannedAmount"])
+    cell = ws.find(user_key)
+    if cell is None:
+        return False
+    row_num = cell.row
+    ws.update(f"C{row_num}:E{row_num}",
+              [[investor_type, str(start_date), planned_amount if planned_amount is not None else ""]])
+    return True
