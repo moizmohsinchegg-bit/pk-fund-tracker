@@ -171,3 +171,12 @@ def compute_portfolio(transactions_df, scored_df, user_key):
     holdings['Gain/Loss %'] = (holdings['Gain/Loss'] / holdings['NetInvested'] * 100).round(2)
 
     return holdings
+def get_signup_requests_df(sh):
+    ws = get_or_create_worksheet(sh, "SignupRequests", ["Name", "Email", "Phone", "RequestDate", "Status"])
+    records = ws.get_all_records()
+    return pd.DataFrame(records) if records else pd.DataFrame(columns=["Name", "Email", "Phone", "RequestDate", "Status"])
+
+
+def add_signup_request(sh, name, email, phone):
+    ws = get_or_create_worksheet(sh, "SignupRequests", ["Name", "Email", "Phone", "RequestDate", "Status"])
+    ws.append_row([name, email, phone, str(date.today()), "Pending"])
