@@ -191,3 +191,31 @@ def update_user_profile(sh, user_key, investor_type, start_date, planned_amount)
     ws.update(f"C{row_num}:E{row_num}",
               [[investor_type, str(start_date), planned_amount if planned_amount is not None else ""]])
     return True
+def generate_interpretation(fund_row, breakdown_df, rec):
+    """Turns the indicator breakdown into a plain-language explanation."""
+    if breakdown_df.empty:
+        return "Not enough data to interpret this fund's trend yet."
+
+    short_term = breakdown_df[breakdown_df['Time Span'].isin(['30 Days', '90 Days'])]
+    long_term = breakdown_df[breakdown_df['Time Span'].isin(['365 Days', '2 Years', '3 Years'])]
+
+    short_pct = pd.to_numeric(short_term['Category Percentile'], errors='coerce').mean()
+    long_pct = pd.to_numeric(long_term['Category Percentile'], errors='coerce').mean()
+
+    trend_note = ""
+    if pd.notna(short_pct) and pd.notna(long_pct):
+        diff = short_pct - long_pct
+        if diff >= 15:
+            trend_note = "Its recent performance is notably better than its longer-term track record — it may be improving."
+        elif diff <= -15:
+            trend_note = "Its recent performance is notably weaker than its longer-term track record — worth watching closely."
+        else:
+            trend_note = "Its recent and longer-term performance are broadly consistent."
+
+    status_explainer = {
+        "HOLD": "It's performing well enough relative to peers that no action is suggested.",
+        "WATCH": "It has slipped below the median for its category — not urgent, but worth monitoring.",
+        "SWITCH": "It's fallen into the bottom tier for its category, which is where the system starts actively suggesting alternatives."
+    }
+
+    return f"{status_explainer[rec['status']]} {trend_note}"
