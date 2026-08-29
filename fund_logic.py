@@ -29,6 +29,7 @@ def score_funds(df):
                         'A+(f)': 5, 'A(f)': 6, 'A-(f)': 7}
     df['Risk Proxy'] = df['Rating'].map(rating_risk_map)
     df['AMC'] = df['Fund Name'].apply(extract_amc)
+    df['Shariah'] = df['Category'].str.contains('Shariah Compliant', na=False)
 
     def score_category(group):
         category_value = group.name
@@ -138,6 +139,30 @@ def generate_interpretation(fund_row, breakdown_df, rec):
     return f"{status_explainer[rec['status']]} {trend_note}"
 
 
+def get_category_leaderboard(scored_df, top_n=3, shariah_only=False):
+    """Returns top N funds per category, for new-investor overview and the always-visible dashboard leaderboard."""
+    df = scored_df.copy()
+    if shariah_only:
+        df = df[df['Shariah'] == True]
+
+    leaderboard = []
+    for cat in df['Category'].dropna().unique():
+        cat_df = df[df['Category'] == cat].sort_values('Rank in Category').head(top_n)
+        for _, row in cat_df.iterrows():
+            leaderboard.append({
+                "Category": cat.replace(" (Absolute Return )", "").replace(" (Annualized Return )", ""),
+                "Rank": int(row['Rank in Category']) if pd.notna(row['Rank in Category']) else None,
+                "Fund Name": row['Fund Name'],
+                "AMC": row['AMC'],
+                "YTD %": row['YTD'],
+                "1Y %": row['365 Days'],
+                "2Y %": row['2 Years'],
+                "3Y %": row['3 Years'],
+                "Rating": row['Rating'],
+            })
+    return pd.DataFrame(leaderboard)
+
+
 def get_or_create_worksheet(sh, name, headers):
     try:
         ws = sh.worksheet(name)
@@ -236,28 +261,6 @@ def get_signup_requests_df(sh):
     records = ws.get_all_records()
     return pd.DataFrame(records) if records else pd.DataFrame(
         columns=["Name", "Email", "Phone", "RequestDate", "Status"])
-def get_category_leaderboard(scored_df, top_n=3, shariah_only=False):
-    """Returns top N funds per category, for new-investor overview."""
-    df = scored_df.copy()
-    if shariah_only:
-        df = df[df['Shariah'] == True]
-
-    leaderboard = []
-    for cat in df['Category'].dropna().unique():
-        cat_df = df[df['Category'] == cat].sort_values('Rank in Category').head(top_n)
-        for _, row in cat_df.iterrows():
-            leaderboard.append({
-                "Category": cat.replace(" (Absolute Return )", "").replace(" (Annualized Return )", ""),
-                "Rank": int(row['Rank in Category']) if pd.notna(row['Rank in Category']) else None,
-                "Fund Name": row['Fund Name'],
-                "AMC": row['AMC'],
-                "YTD %": row['YTD'],
-                "1Y %": row['365 Days'],
-                "2Y %": row['2 Years'],
-                "3Y %": row['3 Years'],
-                "Rating": row['Rating'],
-            })
-    return pd.DataFrame(leaderboard)
 
 
 def add_signup_request(sh, name, email, phone):
