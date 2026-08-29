@@ -1,4 +1,5 @@
-import google.generativeai as genai
+from google import genai
+from google.genai import types
 import streamlit as st
 
 
@@ -7,8 +8,7 @@ def get_ai_recommendation(fund_name, category, breakdown_df, rec, portfolio_summ
     if not api_key:
         return "Gemini API key not configured — add GEMINI_API_KEY in Streamlit secrets."
 
-    genai.configure(api_key=api_key)
-    model = genai.GenerativeModel("gemini-3.6-flash")
+    client = genai.Client(api_key=api_key)
 
     prompt = f"""You are analyzing one mutual fund holding for a Pakistani investor's portfolio.
 
@@ -38,7 +38,13 @@ Write 4-5 sentences max. Reference actual numbers from the data above AND cite w
 influenced your view. End with one line noting this is not financial advice."""
 
     try:
-        response = model.generate_content(prompt, tools=[{"google_search": {}}])
+        response = client.models.generate_content(
+            model="gemini-3.6-flash",
+            contents=prompt,
+            config=types.GenerateContentConfig(
+                tools=[types.Tool(google_search=types.GoogleSearch())]
+            )
+        )
         return response.text
     except Exception as e:
         return f"AI analysis unavailable right now ({e})."
