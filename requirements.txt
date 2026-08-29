@@ -6,3 +6,5 @@ lxml
 streamlit
 plotly
 google-genai
+tavily-python
+groq
