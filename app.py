@@ -235,7 +235,7 @@ else:
                 f"{'15th' if aggressiveness=='conservative' else '30th' if aggressiveness=='moderate' else '50th'} "
                 f"percentile in category."
             )
-                    with st.expander("🤖 AI Analysis (full-context recommendation)"):
+            with st.expander("🤖 AI Analysis (full-context recommendation)"):
             if st.button(f"Get AI analysis for {row['FundName']}", key=f"ai_btn_{row['FundName']}"):
                 with st.spinner("Analyzing..."):
                     portfolio_summary = (
