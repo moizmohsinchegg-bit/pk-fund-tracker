@@ -11,7 +11,7 @@ from fund_logic import (
     update_user_profile, add_signup_request
 )
 from email_utils import send_admin_notification
-from free_ai_utils import get_ai_recommendation_free
+from free_ai_utils import get_ai_recommendation_free as get_ai_recommendation
 from gemini_utils import get_ai_recommendation as get_ai_recommendation_gemini
 
 def get_ai_recommendation(fund_name, category, breakdown_df, rec, portfolio_summary, txn_history_text):
