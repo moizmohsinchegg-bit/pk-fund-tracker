@@ -8,19 +8,20 @@ import plotly.express as px
 from fund_logic import (
     score_funds, get_switch_recommendation, get_indicator_breakdown, generate_interpretation,
     get_users_df, get_transactions_df, add_user, add_transaction, compute_portfolio,
-    update_user_profile, add_signup_request
+    update_user_profile, add_signup_request, get_category_leaderboard
 )
 from email_utils import send_admin_notification
-from free_ai_utils import get_ai_recommendation_free
+from free_ai_utils import get_ai_recommendation_free, get_new_investor_overview
 from gemini_utils import get_ai_recommendation as get_ai_recommendation_gemini
+
+st.set_page_config(page_title="Pakistan Fund Intelligence", layout="wide")
+
 
 def get_ai_recommendation(fund_name, category, breakdown_df, rec, portfolio_summary, txn_history_text):
     result = get_ai_recommendation_free(fund_name, category, breakdown_df, rec, portfolio_summary, txn_history_text)
     if "unavailable right now" in result or "not configured" in result:
         return get_ai_recommendation_gemini(fund_name, category, breakdown_df, rec, portfolio_summary, txn_history_text)
     return result
-
-st.set_page_config(page_title="Pakistan Fund Intelligence", layout="wide")
 
 
 @st.cache_resource
@@ -129,6 +130,9 @@ if needs_onboarding:
     if investor_type == "New":
         planned_amount = st.number_input("How much are you planning to invest (PKR)?", min_value=0.0, step=1000.0)
         planned_date = st.date_input("When do you plan to invest?", value=date.today())
+        shariah_pref = st.checkbox("Shariah-compliant only?", value=True)
+        risk_pref = st.select_slider("Risk tolerance", options=["low", "moderate", "high"], value="moderate")
+
         if st.button("Save profile"):
             if existing_user_row.empty:
                 add_user(sh, user_key, user_email, "New", planned_date, planned_amount)
@@ -202,7 +206,6 @@ else:
 
     st.write("### Fund-by-Fund Detail & Recommendations")
 
-    # Summary table first
     summary_rows = []
     for _, row in portfolio.iterrows():
         peers = scored[scored['Category'] == row['Category']]
@@ -218,7 +221,6 @@ else:
     st.dataframe(pd.DataFrame(summary_rows), use_container_width=True, hide_index=True)
     st.divider()
 
-    # Full detail per fund
     for _, row in portfolio.iterrows():
         peers = scored[scored['Category'] == row['Category']]
         rec = get_switch_recommendation(row, peers, aggressiveness)
@@ -271,10 +273,27 @@ else:
                         row['FundName'], row['Category'], breakdown, rec, portfolio_summary, txn_history_text
                     )
                     st.write(ai_response)
+                    st.caption("⚠️ Fund performance figures are from our verified data. Any news/macro figures "
+                               "mentioned above should be independently verified before acting on them.")
             else:
                 st.caption("Click the button to run a full-context AI analysis (uses one API call).")
 
         st.divider()
+
+# ---------- FUND LEADERBOARD (always visible) ----------
+st.write("### 📊 Fund Leaderboard — Top Funds by Category")
+lb_col1, lb_col2 = st.columns([1, 3])
+with lb_col1:
+    lb_shariah_only = st.checkbox("Shariah-compliant only", value=True, key="lb_shariah")
+leaderboard = get_category_leaderboard(scored, top_n=3, shariah_only=lb_shariah_only)
+st.dataframe(leaderboard, use_container_width=True, hide_index=True)
+
+if st.button("Get AI overview of current market/category conditions"):
+    with st.spinner("Generating overview..."):
+        overview = get_new_investor_overview(leaderboard, 100000, lb_shariah_only, "moderate")
+    st.info(overview)
+    st.caption("This is not financial advice — verify independently and consider consulting a licensed advisor.")
+st.divider()
 
 # ---------- ADD INVESTMENT ----------
 st.write("### Add a New Investment")
