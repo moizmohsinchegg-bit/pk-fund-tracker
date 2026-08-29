@@ -8,7 +8,7 @@ def get_ai_recommendation(fund_name, category, breakdown_df, rec, portfolio_summ
         return "Gemini API key not configured — add GEMINI_API_KEY in Streamlit secrets."
 
     genai.configure(api_key=api_key)
-    model = genai.GenerativeModel("gemini-2.0-flash")
+    model = genai.GenerativeModel("gemini-3.6-flash")
 
     prompt = f"""You are analyzing one mutual fund holding for a Pakistani investor's portfolio.
 
