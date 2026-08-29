@@ -279,7 +279,12 @@ else:
                 st.caption("Click the button to run a full-context AI analysis (uses one API call).")
 
         st.divider()
-
+st.write("DEBUG — scored shape:", scored.shape)
+st.write("DEBUG — Shariah column exists:", 'Shariah' in scored.columns)
+if 'Shariah' in scored.columns:
+    st.write("DEBUG — Shariah value counts:", scored['Shariah'].value_counts(dropna=False))
+st.write("DEBUG — sample categories:", scored['Category'].dropna().unique()[:5])
+st.write("DEBUG — Rank in Category nulls:", scored['Rank in Category'].isna().sum(), "of", len(scored))
 # ---------- FUND LEADERBOARD (always visible) ----------
 st.write("### 📊 Fund Leaderboard — Top Funds by Category")
 lb_col1, lb_col2 = st.columns([1, 3])
