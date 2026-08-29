@@ -140,10 +140,9 @@ def generate_interpretation(fund_row, breakdown_df, rec):
 
 
 def get_category_leaderboard(scored_df, top_n=3, shariah_only=False):
-    """Returns top N funds per category, for new-investor overview and the always-visible dashboard leaderboard."""
     df = scored_df.copy()
     if shariah_only:
-        df = df[df['Shariah'] == True]
+        df = df[df['Category'].astype(str).str.contains('Shariah Compliant', na=False)]
 
     leaderboard = []
     for cat in df['Category'].dropna().unique():
