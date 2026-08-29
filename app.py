@@ -209,9 +209,9 @@ else:
         peers = scored[scored['Category'] == row['Category']]
         rec = get_switch_recommendation(row, peers, aggressiveness)
         color = {"HOLD": "🟢", "WATCH": "🟡", "SWITCH": "🔴"}[rec['status']]
-        breakdown = get_indicator_breakdown(row, peers)
-        interpretation = generate_interpretation(row, breakdown, rec)
-
+        full_fund_row = scored[scored['Fund Name'] == row['FundName']].iloc[0].rename({'Fund Name': 'FundName'})
+        breakdown = get_indicator_breakdown(full_fund_row, peers)
+        interpretation = generate_interpretation(full_fund_row, breakdown, rec)
         st.markdown(f"**{color} {row['FundName']}** — {rec['status']}")
         st.write(f"Units: {row['Units']:.2f} | Current Value: PKR {row['Current Value']:,.0f} | "
                  f"Gain/Loss: PKR {row['Gain/Loss']:,.0f} ({row['Gain/Loss %']}%)")
