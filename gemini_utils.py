@@ -25,15 +25,20 @@ THIS INVESTOR'S FULL PORTFOLIO CONTEXT:
 TRANSACTION HISTORY FOR THIS SPECIFIC FUND:
 {txn_history_text}
 
-Using ALL of the above — this fund's own trend across time spans, how it stacks up against category peers,
-AND how it fits into the investor's broader portfolio (concentration risk, diversification, recent
-investment/redemption activity) — give a short, specific recommendation: SWITCH, WATCH, or HOLD.
+Before answering, search for current, relevant context that could affect this recommendation:
+- Recent Pakistan economic news (SBP policy rate decisions, inflation data, PSX/KSE-100 trends)
+- Any recent news specific to this fund or its asset management company
+- Relevant global market/economic conditions affecting Pakistani markets (oil prices, US Fed rate moves, regional conflicts)
 
-Write 3-4 sentences max. Reference actual numbers from the data above — don't give generic advice.
-End with one line noting this is not financial advice."""
+Using ALL of the above — the fund's own numeric trend, how it stacks against category peers, how it fits
+this investor's broader portfolio, AND current real-world conditions you find via search — give a specific
+recommendation: SWITCH, WATCH, or HOLD.
+
+Write 4-5 sentences max. Reference actual numbers from the data above AND cite what current news/conditions
+influenced your view. End with one line noting this is not financial advice."""
 
     try:
-        response = model.generate_content(prompt)
+        response = model.generate_content(prompt, tools=[{"google_search": {}}])
         return response.text
     except Exception as e:
         return f"AI analysis unavailable right now ({e})."
