@@ -29,6 +29,8 @@ Before answering, search for current, relevant context that could affect this re
 - Recent Pakistan economic news (SBP policy rate decisions, inflation data, PSX/KSE-100 trends)
 - Any recent news specific to this fund or its asset management company
 - Relevant global market/economic conditions affecting Pakistani markets (oil prices, US Fed rate moves, regional conflicts)
+- Also check past historical performance of that specific fund that is under consideration using its official website 
+- Read the data since inception
 
 Using ALL of the above — the fund's own numeric trend, how it stacks against category peers, how it fits
 this investor's broader portfolio, AND current real-world conditions you find via search — give a specific
