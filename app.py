@@ -279,6 +279,9 @@ else:
                 st.caption("Click the button to run a full-context AI analysis (uses one API call).")
 
         st.divider()
+st.write("DEBUG — Shariah True count:", int((scored['Shariah'] == True).sum()))
+st.write("DEBUG — Shariah dtype:", scored['Shariah'].dtype)
+st.write("DEBUG — first 3 categories as list:", list(scored['Category'].dropna().unique()[:3]))
 st.write("DEBUG — scored shape:", scored.shape)
 st.write("DEBUG — Shariah column exists:", 'Shariah' in scored.columns)
 if 'Shariah' in scored.columns:
