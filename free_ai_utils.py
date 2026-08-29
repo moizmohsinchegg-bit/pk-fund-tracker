@@ -60,7 +60,7 @@ the current news context. End with one line noting this is not financial advice.
     try:
         client = Groq(api_key=groq_key)
         completion = client.chat.completions.create(
-            model="llama-3.3-70b-versatile",
+            model="openai/gpt-oss-120b",
             messages=[{"role": "user", "content": prompt}],
         )
         result = completion.choices[0].message.content
