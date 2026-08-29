@@ -2,6 +2,7 @@ import streamlit as st
 import pandas as pd
 import gspread
 from google.oauth2.service_account import Credentials
+from gemini_utils import get_ai_recommendation
 from datetime import date
 import json
 import plotly.express as px
@@ -234,6 +235,28 @@ else:
                 f"{'15th' if aggressiveness=='conservative' else '30th' if aggressiveness=='moderate' else '50th'} "
                 f"percentile in category."
             )
+                    with st.expander("🤖 AI Analysis (full-context recommendation)"):
+            if st.button(f"Get AI analysis for {row['FundName']}", key=f"ai_btn_{row['FundName']}"):
+                with st.spinner("Analyzing..."):
+                    portfolio_summary = (
+                        f"Total portfolio value: PKR {total_value:,.0f} across {len(portfolio)} funds. "
+                        f"Allocation: " + ", ".join(
+                            f"{r['FundName']} ({r['Current Value']/total_value*100:.0f}%)"
+                            for _, r in portfolio.iterrows()
+                        )
+                    )
+                    fund_txns = transactions_df[
+                        (transactions_df['UserKey'] == user_key) & (transactions_df['FundName'] == row['FundName'])
+                    ]
+                    txn_history_text = fund_txns[['Date', 'Type', 'GrossAmount', 'NetAmount']].to_string(index=False) \
+                        if not fund_txns.empty else "No transaction history recorded."
+
+                    ai_response = get_ai_recommendation(
+                        row['FundName'], row['Category'], breakdown, rec, portfolio_summary, txn_history_text
+                    )
+                    st.write(ai_response)
+            else:
+                st.caption("Click the button to run a full-context AI analysis (uses one API call).")
         st.divider()
 
 # ---------- ADD INVESTMENT ----------
