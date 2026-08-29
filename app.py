@@ -2,17 +2,17 @@ import streamlit as st
 import pandas as pd
 import gspread
 from google.oauth2.service_account import Credentials
-from gemini_utils import get_ai_recommendation
 from datetime import date
 import json
 import plotly.express as px
 from fund_logic import (
     score_funds, get_switch_recommendation, get_indicator_breakdown, generate_interpretation,
     get_users_df, get_transactions_df, add_user, add_transaction, compute_portfolio,
-    update_user_profile
+    update_user_profile, add_signup_request
 )
 from email_utils import send_admin_notification
-from fund_logic import get_signup_requests_df, add_signup_request  # add to existing fund_logic import line instead if you prefer one line
+from gemini_utils import get_ai_recommendation
+
 st.set_page_config(page_title="Pakistan Fund Intelligence", layout="wide")
 
 
@@ -101,6 +101,7 @@ users_df = get_users_df(sh)
 transactions_df = get_transactions_df(sh)
 existing_user_row = users_df[users_df['UserKey'] == user_key]
 needs_onboarding = existing_user_row.empty or str(existing_user_row.iloc[0].get('InvestorType', '')).strip() == ''
+
 st.sidebar.write(f"Logged in as: **{user_email}**")
 if st.sidebar.button("Log out"):
     st.session_state.user_key = None
@@ -113,7 +114,7 @@ aggressiveness = st.sidebar.select_slider(
     value="moderate"
 )
 
-# ---------- ONBOARDING (first time only) ----------
+# ---------- ONBOARDING (first time only, or admin-created users missing profile info) ----------
 if needs_onboarding:
     st.subheader("Welcome — let's set up your profile")
     investor_type = st.radio("Are you a new investor or an existing investor?", ["New", "Existing"])
@@ -122,7 +123,10 @@ if needs_onboarding:
         planned_amount = st.number_input("How much are you planning to invest (PKR)?", min_value=0.0, step=1000.0)
         planned_date = st.date_input("When do you plan to invest?", value=date.today())
         if st.button("Save profile"):
-            update_user_profile(sh, user_key, "New", planned_date, planned_amount)
+            if existing_user_row.empty:
+                add_user(sh, user_key, user_email, "New", planned_date, planned_amount)
+            else:
+                update_user_profile(sh, user_key, "New", planned_date, planned_amount)
             st.success("Profile saved! Refresh to continue.")
             st.rerun()
 
@@ -150,7 +154,10 @@ if needs_onboarding:
                 st.write(f"- {h['fund']}: PKR {h['amount']:,.0f}")
 
             if st.button("Finish setup"):
-                update_user_profile(sh, user_key, "Existing", date.today(), None)
+                if existing_user_row.empty:
+                    add_user(sh, user_key, user_email, "Existing", date.today(), None)
+                else:
+                    update_user_profile(sh, user_key, "Existing", date.today(), None)
                 for h in st.session_state.onboard_holdings:
                     nav_row = scored[scored['Fund Name'] == h['fund']]
                     nav = float(nav_row['NAV'].iloc[0]) if not nav_row.empty else None
@@ -186,9 +193,9 @@ else:
         fig_cat = px.pie(cat_alloc, values='Current Value', names='Category', title="Allocation by Category")
         st.plotly_chart(fig_cat, use_container_width=True)
 
-        st.write("### Fund-by-Fund Detail & Recommendations")
+    st.write("### Fund-by-Fund Detail & Recommendations")
 
-    # Summary table first - everything at a glance
+    # Summary table first
     summary_rows = []
     for _, row in portfolio.iterrows():
         peers = scored[scored['Category'] == row['Category']]
@@ -202,17 +209,18 @@ else:
             "Gain/Loss": f"{row['Gain/Loss %']}%",
         })
     st.dataframe(pd.DataFrame(summary_rows), use_container_width=True, hide_index=True)
-
     st.divider()
 
-    # Then full detail per fund
+    # Full detail per fund
     for _, row in portfolio.iterrows():
         peers = scored[scored['Category'] == row['Category']]
         rec = get_switch_recommendation(row, peers, aggressiveness)
         color = {"HOLD": "🟢", "WATCH": "🟡", "SWITCH": "🔴"}[rec['status']]
+
         full_fund_row = scored[scored['Fund Name'] == row['FundName']].iloc[0].rename({'Fund Name': 'FundName'})
         breakdown = get_indicator_breakdown(full_fund_row, peers)
         interpretation = generate_interpretation(full_fund_row, breakdown, rec)
+
         st.markdown(f"**{color} {row['FundName']}** — {rec['status']}")
         st.write(f"Units: {row['Units']:.2f} | Current Value: PKR {row['Current Value']:,.0f} | "
                  f"Gain/Loss: PKR {row['Gain/Loss']:,.0f} ({row['Gain/Loss %']}%)")
@@ -235,7 +243,8 @@ else:
                 f"{'15th' if aggressiveness=='conservative' else '30th' if aggressiveness=='moderate' else '50th'} "
                 f"percentile in category."
             )
-            with st.expander("🤖 AI Analysis (full-context recommendation)"):
+
+        with st.expander("🤖 AI Analysis (full-context recommendation)"):
             if st.button(f"Get AI analysis for {row['FundName']}", key=f"ai_btn_{row['FundName']}"):
                 with st.spinner("Analyzing..."):
                     portfolio_summary = (
@@ -257,6 +266,7 @@ else:
                     st.write(ai_response)
             else:
                 st.caption("Click the button to run a full-context AI analysis (uses one API call).")
+
         st.divider()
 
 # ---------- ADD INVESTMENT ----------
