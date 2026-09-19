@@ -1,9 +1,9 @@
-import os
-import json
-import pandas as pd
-from io import StringIO
-from playwright.sync_api import sync_playwright
-import gspread
+#import os
+#import json
+#import pandas as pd
+#from io import StringIO
+#from playwright.sync_api import sync_playwright
+#import gspread
 from google.oauth2.service_account import Credentials
 
 MUFAP_URL = "https://www.mufap.com.pk/Industry/IndustryStatDaily?tab=1"
